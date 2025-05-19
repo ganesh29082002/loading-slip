@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "my-first-app",
+    "name": "Loading Slip",
     "slug": "my-first-app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -16,7 +16,8 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.ganesh.billingapp"
     },
     "web": {
       "bundler": "metro",
@@ -37,6 +38,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "69732d80-7545-4193-a577-56d3651eb139"
+      }
     }
   }
 }
