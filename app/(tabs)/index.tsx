@@ -383,7 +383,8 @@
 
 
 import { Ionicons } from '@expo/vector-icons';
-import * as FileSystem from 'expo-file-system';
+import { Picker } from '@react-native-picker/picker';
+import * as MediaLibrary from 'expo-media-library';
 import { printToFileAsync } from 'expo-print';
 import { shareAsync } from 'expo-sharing';
 import React, { useState } from 'react';
@@ -396,6 +397,7 @@ interface Item {
   consigneeName: string;
   particulars: string;
   noOfArticles: string;
+  unit: string;
   paid: string;
   toPay: string;
 }
@@ -405,6 +407,8 @@ interface Styles {
   container: StyleProp<ViewStyle>;
   sectionTitle: StyleProp<TextStyle>;
   input: StyleProp<TextStyle>;
+  pickerContainer: StyleProp<ViewStyle>;
+  picker: StyleProp<TextStyle>;
   itemContainer: StyleProp<ViewStyle>;
   itemTitle: StyleProp<TextStyle>;
   addButton: StyleProp<ViewStyle>;
@@ -433,7 +437,7 @@ const IndexScreen: React.FC = () => {
 
   // State for dynamic items with type annotations
   const [items, setItems] = useState<Item[]>([
-    { consignerName: '', consigneeName: '', particulars: '', noOfArticles: '', paid: '', toPay: '' }
+    { consignerName: '', consigneeName: '', particulars: '', noOfArticles: '', unit: 'Tons', paid: '', toPay: '' }
   ]);
 
   // Indian vehicle number validation regex: XX-YY-ZZ-YYYY
@@ -480,7 +484,7 @@ const IndexScreen: React.FC = () => {
 
   // Add new item
   const addItem = (): void => {
-    setItems([...items, { consignerName: '', consigneeName: '', particulars: '', noOfArticles: '', paid: '', toPay: '' }]);
+    setItems([...items, { consignerName: '', consigneeName: '', particulars: '', noOfArticles: '', unit: 'Tons', paid: '', toPay: '' }]);
   };
 
   // Remove item
@@ -506,19 +510,29 @@ const IndexScreen: React.FC = () => {
 
     try {
       const fileName = `LoadingSlip_${slipNumber || 'NoSlip'}_${billDate.replace(/\//g, '-') || 'NoDate'}.pdf`;
-      const downloadDir = Platform.OS === 'android' ? FileSystem.cacheDirectory : FileSystem.documentDirectory;
-      const filePath = `${downloadDir}${fileName}`;
 
-      // Move the file to the download directory
-      await FileSystem.moveAsync({
-        from: pdfUri,
-        to: filePath,
-      });
+      if (Platform.OS === 'android') {
+        // Request permission to access media library on Android
+        const { status } = await MediaLibrary.requestPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert("Permission Denied", "Storage permission is required to save the PDF.");
+          return;
+        }
 
-      Alert.alert("Success", `PDF downloaded to: ${filePath}`);
-      setPdfUri(filePath); // Update URI to the new location
+        // Create an asset from the PDF file
+        const asset = await MediaLibrary.createAssetAsync(pdfUri);
+        
+        // Save the asset to the Downloads album (user-accessible location)
+        await MediaLibrary.createAlbumAsync('Download', asset, false);
+        
+        Alert.alert("Success", "PDF has been saved to your Downloads folder.");
+      } else {
+        // On iOS, use the share sheet to let the user save the file
+        await shareAsync(pdfUri, { dialogTitle: 'Save PDF' });
+        Alert.alert("Success", "Please use the share sheet to save the PDF to your desired location.");
+      }
     } catch (error) {
-      Alert.alert("Error downloading PDF", (error as Error).message);
+      Alert.alert("Error saving PDF", (error as Error).message);
     }
   };
 
@@ -546,22 +560,99 @@ const IndexScreen: React.FC = () => {
     const html = `
       <html>
         <head>
+          <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@700&display=swap" rel="stylesheet">
           <style>
             body { font-family: Arial, sans-serif; margin: 20px; }
-            .header { text-align: center; font-size: 18px; font-weight: bold; }
-            .sub-header { display: flex; justify-content: space-between; margin: 10px 0; }
-            .table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-            .table th, .table td { border: 1px solid black; padding: 5px; text-align: center; font-size: 12px; }
-            .total-row { font-weight: bold; }
-            .footer { margin-top: 20px; display: flex; justify-content: space-between; }
+            .header-container { 
+              display: flex; 
+              justify-content: space-between; 
+              align-items: center; 
+              padding: 20px; 
+              border-bottom: 2px solid #000; 
+              margin-bottom: 20px; 
+            }
+            .header-center { 
+              text-align: center; 
+              flex: 1; 
+            }
+            .header { 
+              font-size: 28px; 
+              font-weight: bold; 
+              color: #000; 
+              font-family: 'Rajdhani', sans-serif;
+            }
+            .address { 
+              font-size: 14px; 
+              font-weight: bold; 
+              color: #333; 
+              margin-top: 5px; 
+            }
+            .header-right { 
+              font-size: 14px; 
+              font-weight: bold; 
+              color: #000; 
+              display: flex;
+              flex-direction: column;
+            }
+            .sub-header { 
+              display: flex; 
+              justify-content: space-between; 
+              padding: 15px; 
+              background-color: #fff; 
+            }
+            .table { 
+              width: 100%; 
+              border-collapse: collapse; 
+              margin-top: 10px; 
+            }
+            .table th, .table td { 
+              border: 1px solid black; 
+              padding: 5px; 
+              text-align: center; 
+              font-size: 12px; 
+            }
+            .total-row { 
+              font-weight: bold; 
+            }
+            .footer { 
+              margin-top: 20px; 
+              display: flex; 
+              justify-content: space-between; 
+            }
+            .top-shloka {
+              text-align: center;
+              color: red;
+              font-size: 18px;
+              font-weight: bold;
+              margin-bottom: 10px;
+              border-top: 1px solid lightgray;
+              border-bottom: 1px solid lightgray;
+              padding: 5px;
+            }
           </style>
         </head>
         <body>
-          <div class="header">SMR TRANSPORTS</div>
-          <div class="header">PH</div>
+          <div class="top-shloka">
+            || जई माई माता कृपा ||  || श्री गणेशाय नमः ||  || आशो माता कृपा ||   || ओम नमः शिवाय  ||
+          </div>
+          <div class="header-container">
+            <div class="header-center">
+              <div class="header">MAA AGHORA KALI TRANSPORT</div>
+              <div class="address">
+                Transport Contractor, Lorry Supplier Commission Agent & Fleet Owner<br>
+                Plot No.6-A, Near Bharat Petrolpump, Vhirgaon, Nagpur (Rural), MH - 441108
+              </div>
+            </div>
+            <div class="header-right">
+              <div>8400910042</div>
+              <div>7620168347</div>
+              <div>7788000026</div>
+              <div>7709787299</div>
+            </div>
+          </div>
           <div class="sub-header">
             <div>No: ${slipNumber}<br>From: ${fromCity}</div>
-            <div>ENROLLMENT NO:<br>Date: ${billDate}</div>
+            <div><br>Date: ${billDate}</div>
             <div>Vehicle No: ${vehicleNumber}<br>To: ${toCity}</div>
           </div>
           <table class="table">
@@ -586,7 +677,7 @@ const IndexScreen: React.FC = () => {
                 <td>${toCity}</td>
                 <td>${item.consigneeName}</td>
                 <td>${item.particulars}</td>
-                <td>${item.noOfArticles}</td>
+                <td>${item.noOfArticles} ${item.unit}</td>
                 <td>${item.paid}</td>
                 <td>${item.toPay}</td>
               </tr>
@@ -682,13 +773,27 @@ const IndexScreen: React.FC = () => {
             value={item.particulars}
             onChangeText={(text) => updateItem(index, 'particulars', text)}
           />
-          <TextInput
-            style={styles.input}
-            placeholder="No of Articles"
-            value={item.noOfArticles}
-            onChangeText={(text) => updateItem(index, 'noOfArticles', text)}
-            keyboardType="numeric"
-          />
+          <View style={styles.pickerContainer}>
+            <TextInput
+              style={[styles.input, { flex: 1 }]}
+              placeholder="No of Articles"
+              value={item.noOfArticles}
+              onChangeText={(text) => updateItem(index, 'noOfArticles', text)}
+              keyboardType="numeric"
+            />
+            <Picker
+              selectedValue={item.unit}
+              style={styles.picker}
+              onValueChange={(value) => updateItem(index, 'unit', value)}
+            >
+              <Picker.Item label="Tons" value="Tons" />
+              <Picker.Item label="Kg" value="Kg" />
+              <Picker.Item label="Units" value="Units" />
+              <Picker.Item label="Feets" value="Feets" />
+              <Picker.Item label="Meters" value="Meters" />
+              <Picker.Item label="Kg / m³" value="Kg / m³" />
+            </Picker>
+          </View>
           <TextInput
             style={styles.input}
             placeholder="Paid"
@@ -755,6 +860,19 @@ const styles: Styles = StyleSheet.create({
     borderRadius: 5,
     padding: 10,
     marginVertical: 5,
+    backgroundColor: '#fff',
+  },
+  pickerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 5,
+  },
+  picker: {
+    flex: 1,
+    height: 50,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 5,
     backgroundColor: '#fff',
   },
   itemContainer: {
